@@ -1,0 +1,147 @@
+# ============================================================
+# VLM-RL-Stress .gitignore
+# ============================================================
+
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+*.whl
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.conda/
+
+# ==================== Jupyter ====================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ==================== IDE / Editor ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==================== CARLA Simülatör Binary ====================
+# DİKKAT: `CARLA_*/` KULLANMA — `carla_env/`'i de yutar.
+# Spesifik klasör isimleri yaz:
+CARLA_0.9.13/
+CARLA_0.9.14/
+CARLA_0.9.15/
+CARLA_0.9.16/
+WindowsNoEditor/
+LinuxNoEditor/
+CarlaUE4-Win64-Shipping.exe
+CarlaUE4.exe
+*.pak
+
+# ==================== Model Checkpoints ====================
+checkpoints/
+hf_vlmrl/
+*.pth
+*.pt
+*.ckpt
+sac_model.zip
+model_*.zip
+model_*_steps.zip
+
+# ==================== Eğitim Çıktıları ====================
+tensorboard/
+runs/
+logs/
+wandb/
+mlruns/
+*.log
+*.tfevents.*
+
+# ==================== Eval Çıktıları ====================
+results/
+eval_output/
+*_eval.csv
+*_eval_summary.csv
+*_eval.avi
+*_eval.mp4
+
+# ==================== HDF5 / Cache ====================
+# Yazarın Town*.h5 dosyaları repo içinde gerekli — istisna ekle
+*.h5
+!repo/carla_env/envs/Town*.h5
+
+# CARLA cache
+.cache/
+*.bin
+!repo/carla_env/envs/Town*.bin
+
+# ==================== Geçici / Scratch ====================
+scratch/
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.orig
+
+# ==================== Sistem ====================
+# Windows
+$RECYCLE.BIN/
+ehthumbs.db
+ehthumbs_vista.db
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+.Trash-*
+.nfs*
+
+# ==================== Özel Dosyalar ====================
+.env
+.env.local
+secrets.yaml
+config.local.py
+
+# Hugging Face / OpenCLIP cache (proje içinde oluşursa)
+.huggingface/
+clip_cache/
+huggingface/
+
+# ==================== Test Output ====================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+
+# ==================== LaTeX (opsiyonel) ====================
+*.aux
+*.lof
+*.lot
+*.fls
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+
+# ==================== Özel Notlar ====================
+NOTES_PRIVATE.md
+TODO_PERSONAL.txt
