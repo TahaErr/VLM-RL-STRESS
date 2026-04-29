@@ -64,6 +64,7 @@ model_*_steps.zip
 # ==================== Eğitim Çıktıları ====================
 tensorboard/
 runs/
+results/
 logs/
 wandb/
 mlruns/

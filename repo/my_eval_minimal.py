@@ -23,6 +23,17 @@ KULLANIM:
 ÇIKTI:
     - Konsola: per-step özet, episode sonu metrikleri
     - Dosyaya: ../results/eval_minimal_town02.csv
+
+DÜZELTMELER (önceki sürüme göre):
+    1. Collision tracking: env.collision_count yerine info["collision_state"]
+       (env.collision_num sadece terminal'de artar, step polling işe yaramıyor)
+    2. Speed birimi: Vehicle.get_speed() ZATEN km/h döndürüyor (wrappers.py'de
+       internal * 3.6 yapılmış). Önceki sürümdeki * 3.6 yanlıştı, kaldırıldı.
+       PROJECT_STATUS'taki "info[avg_speed] m/s" yorumu da yanlıştı: o değer
+       zaten km/h.
+    3. routes_completed: paper RC metriği env.routes_completed (float),
+       current_waypoint_index'ten (int) ayrıldı
+    4. CS/CPS/CPM: terminal info'dan doğrudan alınıyor
 """
 
 import warnings
@@ -108,18 +119,9 @@ if isinstance(state, tuple):
     state = state[0]
 print(f"  Reset done in {time.time()-t_reset:.1f}s")
 
-# Episode başlangıç bilgileri
-total_route_length = None
-if hasattr(env, 'route_waypoints'):
-    total_route_length = len(env.route_waypoints)
-    print(f"  Route waypoints: {total_route_length}")
-
 # Step döngüsü
 episode_reward = 0.0
-collisions = 0
-last_collision_step = -1
-collision_speeds = []
-prev_collision_count = 0
+last_info = {}  # episode sonu metrikleri için
 
 t_episode = time.time()
 for step in range(MAX_STEPS_PER_EPISODE):
@@ -136,15 +138,18 @@ for step in range(MAX_STEPS_PER_EPISODE):
 
     state = next_state
     episode_reward += reward
+    last_info = info if isinstance(info, dict) else {}
 
-    # Vehicle stats
+    # Vehicle stats — per-step CSV için
     speed_kmh = 0.0
     loc_x, loc_y = 0.0, 0.0
     center_dev = 0.0
-    routes_completed = 0
+    waypoint_idx = 0
+    routes_completed_float = 0.0
     if hasattr(env, 'vehicle') and env.vehicle is not None:
         try:
-            speed_kmh = env.vehicle.get_speed() * 3.6  # m/s -> km/h
+            # Vehicle.get_speed() ZATEN km/h döndürür (wrappers.py'de * 3.6 yapılmış)
+            speed_kmh = env.vehicle.get_speed()
         except Exception:
             pass
         try:
@@ -155,17 +160,11 @@ for step in range(MAX_STEPS_PER_EPISODE):
     if hasattr(env, 'distance_from_center'):
         center_dev = env.distance_from_center
     if hasattr(env, 'current_waypoint_index'):
-        routes_completed = env.current_waypoint_index
+        waypoint_idx = env.current_waypoint_index
+    if hasattr(env, 'routes_completed'):
+        routes_completed_float = env.routes_completed  # paper RC metriği (float)
 
-    # Collision tracking
-    if hasattr(env, 'collision_count'):
-        if env.collision_count > prev_collision_count:
-            collisions += 1
-            collision_speeds.append(speed_kmh)
-            last_collision_step = step
-        prev_collision_count = env.collision_count
-
-    # Log row
+    # Log row — waypoint_idx (int, debug) ve routes_completed (float, paper RC) ayrı
     log_rows.append({
         'step': step,
         'throttle': float(action[1]) if action[1] >= 0 else 0.0,
@@ -176,7 +175,8 @@ for step in range(MAX_STEPS_PER_EPISODE):
         'loc_x': loc_x,
         'loc_y': loc_y,
         'center_dev': center_dev,
-        'routes_completed': routes_completed,
+        'waypoint_idx': waypoint_idx,
+        'routes_completed': routes_completed_float,
         'terminated': terminated,
         'truncated': truncated,
     })
@@ -185,15 +185,32 @@ for step in range(MAX_STEPS_PER_EPISODE):
     if (step + 1) % 50 == 0:
         avg_r = np.mean([r['reward'] for r in log_rows[-50:]])
         avg_s = np.mean([r['speed_kmh'] for r in log_rows[-50:]])
-        print(f"  step {step+1:4d} | speed_avg(50)={avg_s:5.1f} | reward_avg(50)={avg_r:+.3f} | wp={routes_completed} | total_r={episode_reward:+.1f}")
+        print(f"  step {step+1:4d} | speed_avg(50)={avg_s:5.1f} km/h | "
+              f"reward_avg(50)={avg_r:+.3f} | wp={waypoint_idx} | "
+              f"RC={routes_completed_float:.3f} | total_r={episode_reward:+.1f}")
 
     # Termination
     if terminated or truncated:
         print(f"\n  Episode ended at step {step+1}")
-        if isinstance(info, dict):
-            for k in ['terminal_reason', 'episode', 'mean_reward', 'avg_speed', 'avg_center_dev']:
-                if k in info:
-                    print(f"    info[{k}] = {info[k]}")
+        # Speed alanlarını km/h'a dönüştür, diğerlerini olduğu gibi göster
+        for k in ['terminal_reason', 'episode', 'mean_reward', 'avg_center_dev',
+                  'routes_completed', 'total_distance', 'collision_state',
+                  'collision_num']:
+            if k in last_info:
+                print(f"    info[{k}] = {last_info[k]}")
+        # Hız alanları zaten km/h (env.vehicle.get_speed() km/h döndürür)
+        if 'speed' in last_info:
+            print(f"    info[speed]      = {last_info['speed']:.2f} km/h")
+        if 'avg_speed' in last_info:
+            print(f"    info[avg_speed]  = {last_info['avg_speed']:.2f} km/h")
+        # Çarpışma terminal anında bu alanlar dolar
+        if last_info.get('collision_state'):
+            for k in ['collision_speed', 'collision_interval', 'CPS', 'CPM']:
+                if k in last_info:
+                    if k == 'collision_speed':
+                        print(f"    info[{k}] = {last_info[k]:.2f} km/h")
+                    else:
+                        print(f"    info[{k}] = {last_info[k]}")
         break
 
 episode_duration = time.time() - t_episode
@@ -217,15 +234,24 @@ print(f"  Total reward:            {episode_reward:+.2f}")
 print(f"  Mean reward/step:        {df['reward'].mean():+.3f}")
 print(f"  Mean speed:              {df['speed_kmh'].mean():.2f} km/h")
 print(f"  Mean center deviation:   {df['center_dev'].mean():.3f} m")
-print(f"  Final waypoint index:    {df['routes_completed'].iloc[-1]}")
+print(f"  Final waypoint idx:      {df['waypoint_idx'].iloc[-1]}")
 
-if total_route_length:
-    rc = df['routes_completed'].iloc[-1] / total_route_length
-    print(f"  Route Completion (RC):   {rc*100:.1f}% ({df['routes_completed'].iloc[-1]}/{total_route_length})")
-
-print(f"  Collisions:              {collisions}")
-if collisions > 0:
-    print(f"  Mean collision speed:    {np.mean(collision_speeds):.1f} km/h")
+# Paper metrikleri — env.routes_completed (info["routes_completed"]) üzerinden
+rc = last_info.get('routes_completed', df['routes_completed'].iloc[-1])
+total_dist = last_info.get('total_distance', 0.0)
+collision_state = last_info.get('collision_state', False)
+collision_num = last_info.get('collision_num', 0)
+print()
+print(f"  >> Paper Tablo 2 metrikleri:")
+print(f"  Route Completion (RC):   {rc:.3f} ({rc*100:.1f}%)")
+print(f"  Total Distance (TD):     {total_dist:.1f} m")
+print(f"  Collision State (CS):    {collision_state}")
+print(f"  Collision Num (this ep): {collision_num}")
+if collision_state:
+    cs = last_info.get('collision_speed', 0.0)
+    print(f"  Collision Speed:         {cs:.2f} km/h")
+    print(f"  CPS:                     {last_info.get('CPS', 0.0):.6f}")
+    print(f"  CPM:                     {last_info.get('CPM', 0.0):.4f}")
 
 # Save CSV
 df.to_csv(CSV_PATH, index=False)
@@ -245,8 +271,8 @@ print("\n" + "=" * 60)
 print("✅ MINIMAL EVAL TAMAMLANDI")
 print("=" * 60)
 print("\nPaper Tablo 2 (vlm_rl, Town02) bekledikleri:")
-print("  CR (Collision Rate):     ~0.02")
+print("  CR (Collision Rate):     ~0.02  (10 episode'da ~0.2 collision)")
 print("  RC (Route Completion):   ~0.97")
 print("  SR (Success Rate):       ~0.93")
 print("\nBu tek bir episode olduğundan paper sayılarıyla doğrudan karşılaştırılamaz")
-print("ama RC=%80+ ve collision=0 görürsek pipeline çalışıyor demektir.")
+print("ama RC>0.5 ve mantıklı sürüş davranışı pipeline'ın çalıştığını gösterir.")
